@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import AdminLogin from './AdminLogin'
 import AdminLayout from './admin/AdminLayout'
 import CottagesAdmin from './admin/CottagesAdmin'
+import ActivitiesAdmin from './admin/ActivitiesAdmin'
+import type { AdminTab } from './admin/AdminLayout'
 
 type Access = 'checking' | 'staff' | 'denied'
 type AccessResult = Exclude<Access, 'checking'>
@@ -12,7 +14,8 @@ export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessResult, setAccessResult] = useState<{ userId: string; access: AccessResult } | null>(null)
-
+  const [tab, setTab] = useState<AdminTab>('cottages')
+  
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
@@ -67,9 +70,9 @@ export default function AdminApp() {
     )
   }
 
-  return (
-    <AdminLayout email={session.user.email ?? ''} onSignOut={() => supabase.auth.signOut()}>
-      <CottagesAdmin />
+   return (
+    <AdminLayout email={session.user.email ?? ''} tab={tab} onTab={setTab} onSignOut={() => supabase.auth.signOut()}>
+      {tab === 'cottages' ? <CottagesAdmin /> : <ActivitiesAdmin />}
     </AdminLayout>
   )
 }

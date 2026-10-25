@@ -1,14 +1,25 @@
 import BrandMark from '../../components/BrandMark'
 
+export type AdminTab = 'cottages' | 'activities'
+
 export default function AdminLayout({
   email,
+  tab,
+  onTab,
   onSignOut,
   children,
 }: {
   email: string
+  tab: AdminTab
+  onTab: (tab: AdminTab) => void
   onSignOut: () => void
   children: React.ReactNode
 }) {
+  const tabs: { id: AdminTab; label: string }[] = [
+    { id: 'cottages', label: 'Cottages' },
+    { id: 'activities', label: 'Activities' },
+  ]
+
   return (
     <div className="min-h-screen bg-[#f4f6f3] text-[#263c34]">
       <header className="flex min-h-[64px] flex-wrap items-center justify-between gap-3 bg-deep px-5 py-3 text-white min-[901px]:px-8">
@@ -20,8 +31,15 @@ export default function AdminLayout({
           </span>
         </div>
         <nav className="flex items-center gap-1 text-[12px]">
-          <span className="rounded bg-[#285444] px-3 py-2 font-semibold">Cottages</span>
-          <span className="px-3 py-2 text-[#8ca399]">Activities (next)</span>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => onTab(t.id)}
+              className={`rounded px-3 py-2 font-semibold ${tab === t.id ? 'bg-[#285444] text-white' : 'text-[#b7c9c2] hover:bg-[#285444]/60'}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </nav>
         <div className="flex items-center gap-3 text-[11px] text-[#b7c9c2]">
           <span className="hidden min-[641px]:inline">{email}</span>
