@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import AdminLogin from './AdminLogin'
+import AdminLayout from './admin/AdminLayout'
+import CottagesAdmin from './admin/CottagesAdmin'
 
 type Access = 'checking' | 'staff' | 'denied'
 type AccessResult = Exclude<Access, 'checking'>
@@ -66,14 +68,8 @@ export default function AdminApp() {
   }
 
   return (
-    <main className={shell}>
-      <div className="max-w-115 bg-paper p-9 text-center">
-        <h1 className="mb-3 text-2xl font-bold tracking-[-.03em]">Welcome, staff</h1>
-        <p className="mb-6 text-sm text-[#67766f]">Signed in as {session.user.email}. The dashboard comes next.</p>
-        <button onClick={() => supabase.auth.signOut()} className="min-h-11 rounded-[3px] bg-forest px-5.5 text-[13px] font-bold text-white">
-          Sign out
-        </button>
-      </div>
-    </main>
+    <AdminLayout email={session.user.email ?? ''} onSignOut={() => supabase.auth.signOut()}>
+      <CottagesAdmin />
+    </AdminLayout>
   )
 }
