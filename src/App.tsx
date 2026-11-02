@@ -9,13 +9,14 @@ import type { AvailabilityResult } from './types'
 
 function GuestSite() {
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null)
+  const [refresh, setRefresh] = useState(0)
 
   return (
     <div className="min-h-screen" id="top">
       <Header />
       <Hero />
-      <AvailabilityBar onResult={setAvailability} />
-      <CottagesSection availability={availability} />
+      <AvailabilityBar onResult={setAvailability} refreshSignal={refresh} />
+      <CottagesSection availability={availability} onBooked={() => setRefresh((n) => n + 1)} />
       <ActivitiesSection />
     </div>
   )

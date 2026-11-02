@@ -4,7 +4,13 @@ import { formatVisitDate, todayInManila } from '../lib/dates'
 import type { AvailabilityResult, CottageAvailability } from '../types'
 import Icon from './Icon'
 
-export default function AvailabilityBar({ onResult }: { onResult: (r: AvailabilityResult | null) => void }) {
+export default function AvailabilityBar({
+  onResult,
+  refreshSignal = 0,
+}: {
+  onResult: (r: AvailabilityResult | null) => void
+  refreshSignal?: number
+}) {
   const [today, setToday] = useState(todayInManila())
   const [error, setError] = useState('')
   const [summary, setSummary] = useState('')
@@ -40,11 +46,12 @@ export default function AvailabilityBar({ onResult }: { onResult: (r: Availabili
   )
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void check(false)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [check])
+    const runCheck = async () => {
+      await check(false)
+    }
+
+    void runCheck()
+  }, [check, refreshSignal])
 
   return (
     <section className="relative z-[3] -mt-[35px] px-[clamp(24px,8vw,124px)] max-[640px]:-mt-7 max-[640px]:px-4">

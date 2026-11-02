@@ -4,11 +4,19 @@ import { imageUrl } from '../lib/images'
 import { formatVisitDate } from '../lib/dates'
 import type { AvailabilityResult, Cottage } from '../types'
 import Icon from './Icon'
+import BookingModal from './BookingModal'
 
-export default function CottagesSection({ availability }: { availability: AvailabilityResult | null }) {
+export default function CottagesSection({
+  availability,
+  onBooked,
+}: {
+  availability: AvailabilityResult | null
+  onBooked: () => void
+}) {
   const [items, setItems] = useState<Cottage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [booking, setBooking] = useState<Cottage | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -108,11 +116,26 @@ export default function CottagesSection({ availability }: { availability: Availa
                     <Icon name="calendar" size={15} /> {c.price_note}
                   </div>
                 )}
+                {full ? (
+                  <p className={`pt-[18px] text-xs font-bold text-[#8a958f] ${c.price_note ? '' : 'mt-[18px] border-t border-[#eeeae2]'}`}>
+                    Fully booked today
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setBooking(c)}
+                    className={`flex w-full items-center justify-between border-0 bg-transparent pt-[18px] text-xs font-bold text-[#235440] ${c.price_note ? '' : 'mt-[18px] border-t border-[#eeeae2]'}`}
+                  >
+                    View cottage &amp; book <Icon name="arrow" size={16} />
+                  </button>
+                )}
               </div>
             </article>
           )
         })}
       </div>
+
+      {booking && <BookingModal cottage={booking} onClose={() => setBooking(null)} onBooked={onBooked} />}
     </section>
   )
 }

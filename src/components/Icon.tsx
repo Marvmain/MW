@@ -1,4 +1,4 @@
-export type IconName = 'bed' | 'bike' | 'leaf' | 'arrow' | 'menu' | 'close' | 'home' | 'calendar' | 'search'
+export type IconName = 'bed' | 'bike' | 'leaf' | 'arrow' | 'menu' | 'close' | 'home' | 'calendar' | 'search' | 'check' | 'clock'
 
 const paths: Record<IconName, React.ReactNode> = {
   bed: <path d="M2 20v-8M22 20v-5a3 3 0 0 0-3-3H2v8M6 12V7h6a3 3 0 0 1 3 3v2M2 17h20" />,
@@ -35,6 +35,13 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.35-4.35" />
+    </>
+  ),
+  check: <path d="m5 12 4 4L19 6" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
     </>
   ),
 }

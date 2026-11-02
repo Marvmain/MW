@@ -31,3 +31,11 @@ export type AvailabilityResult = {
   date: string
   rows: CottageAvailability[]
 }
+export type ReservationResult = {
+  reservation_id: string
+  reference: string
+  total: number
+  downpayment: number
+  balance: number
+  hold_expires_at: string
+}
