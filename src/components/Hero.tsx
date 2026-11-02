@@ -1,8 +1,6 @@
 
 import Icon from './Icon'
-
-const heroPhoto =
-  'https://scontent.fceb2-2.fna.fbcdn.net/v/t39.30808-6/635167791_912552271290703_3680617344999851764_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1536&ctp=s2048x1536&_nc_cat=101&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeFutDTc5gYLtWY9dZUwpfNeDUJe9gme7_wNQl72CZ7v_AuwTUixQ3TA2b5YGHExP2tuY9IVBBfKCphmQjZJVvrR&_nc_ohc=UoaV8CAynC0Q7kNvwGz2dBN&_nc_oc=AdoFCTI01i_JQ_hPaPGvVKwTDzWHv36FK4K7UX30IkBlkcU6Unlu7rEn5qff5Radzhc&_nc_zt=23&_nc_ht=scontent.fceb2-2.fna&_nc_gid=wZTg1pS2MjQF7gsNtdazPg&_nc_ss=7b2a8&oh=00_AQP8ziw-i6P1QLvwQ4NjEQsQ1EVwZe10NgO4aS01OqKDqA&oe=6AE3A12F'
+const heroPhoto = '/images/Cinematic Jungle Lagoon Diving Platform.png';
 
 export default function Hero() {
   return (

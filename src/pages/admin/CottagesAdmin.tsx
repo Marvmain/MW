@@ -18,6 +18,7 @@ function messageOf(err: unknown) {
   return (err as { message?: string })?.message ?? 'Please try again.'
 }
 
+
 export default function CottagesAdmin() {
   const [items, setItems] = useState<Cottage[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +28,7 @@ export default function CottagesAdmin() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -95,6 +97,14 @@ export default function CottagesAdmin() {
     setFile(f)
     setPreview(f ? URL.createObjectURL(f) : null)
     setFormError(f ? checkImage(f) ?? '' : '')
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files[0]
+    if (droppedFile) onPickFile(droppedFile)
   }
 
   async function save(e: React.FormEvent) {
@@ -228,15 +238,107 @@ export default function CottagesAdmin() {
               </label>
             </div>
 
-            <div className="mt-5">
-              <span className={labelClass}>Photo (JPG, PNG or WebP, up to 5 MB)</span>
-              <div className="mt-2 flex items-center gap-4">
-                <div className="h-[72px] w-[96px] shrink-0 overflow-hidden bg-[#e8efe8]">
-                  {(preview || (editing && imageUrl(editing.image_path))) && (
-                    <img src={preview ?? imageUrl(editing!.image_path)!} alt="Preview" className="h-full w-full object-cover" />
-                  )}
+            <div className="mt-6">
+              <div className="mb-3">
+                <span className={labelClass}>Cottage Photo</span>
+                <p className="mt-1 text-xs text-[#849089]">Upload an image to showcase this cottage.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label
+                  htmlFor="photo-upload"
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setIsDragging(true)
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  className={`relative flex min-h-[230px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-300 ${
+                    isDragging
+                      ? 'scale-[1.02] border-[#30624d] bg-[#e3eee4]'
+                      : 'border-[#c9d1cb] bg-[#f7f9f6] hover:border-[#30624d] hover:bg-[#f0f5ef]'
+                  }`}
+                >
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#e3eee4] text-[#30624d] shadow-sm transition-transform duration-300 hover:scale-110">
+                    <svg
+                      width="34"
+                      height="34"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 16V4" />
+                      <path d="m7 9 5-5 5 5" />
+                      <path d="M20 16.5v2A2.5 2.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-2" />
+                    </svg>
+                  </div>
+
+                  <h3 className="text-sm font-semibold text-[#263f36]">
+                    {isDragging ? 'Drop your image here' : 'Upload your image'}
+                  </h3>
+                  <p className="mt-2 text-xs text-[#849089]">Drag and drop your file here or</p>
+                  <span className="mt-4 rounded-lg bg-green px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105">
+                    Browse Files
+                  </span>
+                  <p className="mt-4 text-[10px] text-[#849089]">JPG, PNG or WebP · Maximum 5 MB</p>
+
+                  <input
+                    id="photo-upload"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      onPickFile(e.target.files?.[0] ?? null)
+                      e.target.value = ''
+                    }}
+                    className="sr-only"
+                  />
+                </label>
+
+                <div className="flex min-h-[230px] flex-col rounded-xl border border-[#dfe4df] bg-white p-4 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#263f36]">Image Preview</h3>
+                      <p className="mt-1 text-[10px] text-[#849089]">Preview your selected photo</p>
+                    </div>
+                    {(preview || (editing && imageUrl(editing.image_path))) && (
+                      <span className="rounded-full bg-[#e3eee4] px-3 py-1 text-[10px] font-semibold text-[#2f694d]">Ready</span>
+                    )}
+                  </div>
+
+                  <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-lg bg-[#f7f9f6]">
+                    {(preview || (editing && imageUrl(editing.image_path))) ? (
+                      <img
+                        src={preview ?? imageUrl(editing!.image_path)!}
+                        alt="Cottage photo preview"
+                        className="h-[165px] w-full rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="py-8 text-center">
+                        <svg
+                          width="42"
+                          height="42"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#aebbb2"
+                          strokeWidth="1.4"
+                          className="mx-auto"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="3" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="m21 15-5-5L5 21" />
+                        </svg>
+                        <p className="mt-3 text-xs font-medium text-[#849089]">No image uploaded yet</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-[10px] text-[#849089]">Recommended: High-quality cottage photo</p>
                 </div>
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} className="text-[12px]" />
               </div>
             </div>
 

@@ -20,3 +20,14 @@ export type Activity = {
   is_active: boolean
   sort_order: number
 }
+export type CottageAvailability = {
+  cottage_id: string
+  units: number
+  booked: number
+  remaining: number
+}
+
+export type AvailabilityResult = {
+  date: string
+  rows: CottageAvailability[]
+}
