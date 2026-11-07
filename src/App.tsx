@@ -4,8 +4,14 @@ import Hero from './components/Hero'
 import AvailabilityBar from './components/AvailabilityBar'
 import CottagesSection from './components/CottagesSection'
 import ActivitiesSection from './components/ActivitiesSection'
+import ProcessSection from './components/ProcessSection'
+import LocationSection from './components/LocationSection'
+import Footer from './components/Footer'
 import TrackModal from './components/TrackModal'
 import AdminApp from './pages/AdminApp'
+import VideoSection from './components/VideoSection'
+
+
 import type { AvailabilityResult } from './types'
 
 function GuestSite() {
@@ -20,6 +26,10 @@ function GuestSite() {
       <AvailabilityBar onResult={setAvailability} refreshSignal={refresh} />
       <CottagesSection availability={availability} onBooked={() => setRefresh((n) => n + 1)} />
       <ActivitiesSection />
+      <VideoSection />
+      <ProcessSection />
+      <LocationSection />
+      <Footer />
       {trackOpen && <TrackModal onClose={() => setTrackOpen(false)} />}
     </div>
   )
