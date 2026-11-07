@@ -16,7 +16,7 @@ export default function CottagesSection({
   const [items, setItems] = useState<Cottage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [booking, setBooking] = useState<Cottage | null>(null)
+  const [booking, setBooking] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -123,7 +123,7 @@ export default function CottagesSection({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setBooking(c)}
+                    onClick={() => setBooking(c.id)}
                     className={`flex w-full items-center justify-between border-0 bg-transparent pt-[18px] text-xs font-bold text-[#235440] ${c.price_note ? '' : 'mt-[18px] border-t border-[#eeeae2]'}`}
                   >
                     View cottage &amp; book <Icon name="arrow" size={16} />
@@ -135,7 +135,15 @@ export default function CottagesSection({
         })}
       </div>
 
-      {booking && <BookingModal cottage={booking} onClose={() => setBooking(null)} onBooked={onBooked} />}
+        {booking && (
+        <BookingModal
+          cottages={items}
+          initialId={booking}
+          availability={availability}
+          onClose={() => setBooking(null)}
+          onBooked={onBooked}
+        />
+      )}
     </section>
   )
 }

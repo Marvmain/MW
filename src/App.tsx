@@ -4,20 +4,23 @@ import Hero from './components/Hero'
 import AvailabilityBar from './components/AvailabilityBar'
 import CottagesSection from './components/CottagesSection'
 import ActivitiesSection from './components/ActivitiesSection'
+import TrackModal from './components/TrackModal'
 import AdminApp from './pages/AdminApp'
 import type { AvailabilityResult } from './types'
 
 function GuestSite() {
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null)
   const [refresh, setRefresh] = useState(0)
+  const [trackOpen, setTrackOpen] = useState(false)
 
   return (
     <div className="min-h-screen" id="top">
-      <Header />
+      <Header onTrack={() => setTrackOpen(true)} />
       <Hero />
       <AvailabilityBar onResult={setAvailability} refreshSignal={refresh} />
       <CottagesSection availability={availability} onBooked={() => setRefresh((n) => n + 1)} />
       <ActivitiesSection />
+      {trackOpen && <TrackModal onClose={() => setTrackOpen(false)} />}
     </div>
   )
 }

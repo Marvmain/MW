@@ -8,7 +8,7 @@ const links = [
   { label: 'Our Place', href: '#visit', icon: 'leaf' },
 ] as const
 
-export default function Header() {
+export default function Header({ onTrack }: { onTrack: () => void }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -37,6 +37,19 @@ export default function Header() {
             {link.label}
           </a>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            onTrack()
+          }}
+          className="inline-flex items-center gap-[7px] border-0 bg-transparent text-[13px] font-semibold text-[#50665d] hover:text-forest"
+        >
+          <span className="text-[#789068]">
+            <Icon name="search" size={16} />
+          </span>
+          My booking
+        </button>
         <a
           href="#cottages"
           onClick={() => setOpen(false)}
