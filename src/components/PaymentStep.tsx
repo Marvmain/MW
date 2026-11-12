@@ -2,22 +2,27 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { checkProof, submitPaymentProof } from '../lib/proofs'
 import { peso } from '../lib/money'
+import { useCountdown } from '../lib/useCountdown'
+import { useFeedback } from './Feedback'
+import HoldTimer from './HoldTimer'
 import type { PaymentMethod } from '../types'
 import Icon from './Icon'
 
 type Props = {
   reservationId: string
   downpayment: number
-  holdTime: string
+  expiresAt: string
   onUploaded: () => void
 }
 
-export default function PaymentStep({ reservationId, downpayment, holdTime, onUploaded }: Props) {
+export default function PaymentStep({ reservationId, downpayment, expiresAt, onUploaded }: Props) {
+  const { toast } = useFeedback()
+  const remaining = useCountdown(expiresAt)
+  const expired = remaining === 0
   const [methods, setMethods] = useState<PaymentMethod[]>([])
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [copied, setCopied] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -41,7 +46,7 @@ export default function PaymentStep({ reservationId, downpayment, holdTime, onUp
 
   async function sendProof(e: React.FormEvent) {
     e.preventDefault()
-    if (!file) return
+    if (!file || expired) return
     const problem = checkProof(file)
     if (problem) return setUploadError(problem)
     setUploading(true)
@@ -58,10 +63,9 @@ export default function PaymentStep({ reservationId, downpayment, holdTime, onUp
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(text)
-      setTimeout(() => setCopied(''), 1500)
+      toast('Number copied.')
     } catch {
-      /* clipboard not available */
+      toast('Could not copy. Please copy it by hand.', 'error')
     }
   }
 
@@ -72,7 +76,9 @@ export default function PaymentStep({ reservationId, downpayment, holdTime, onUp
           <span className="font-bold">Please send (30% downpayment)</span>
           <strong className="text-[15px]">{peso(Math.round(downpayment * 100))}</strong>
         </div>
-        <p className="mt-1.5 text-[11px] text-[#8a958f]">Upload your proof before {holdTime}, or the hold is released.</p>
+        <div className="mt-2.5">
+          <HoldTimer expiresAt={expiresAt} />
+        </div>
       </div>
 
       <div className="mb-5">
@@ -95,7 +101,7 @@ export default function PaymentStep({ reservationId, downpayment, holdTime, onUp
                   onClick={() => copy(m.account_number)}
                   className="h-[33px] shrink-0 rounded-[3px] border border-[#d7ddd8] bg-white px-3 text-[11px] font-bold text-[#466158] hover:bg-[#f4f6f3]"
                 >
-                  {copied === m.account_number ? 'Copied' : 'Copy number'}
+                  Copy number
                 </button>
               </div>
             ))}
@@ -120,10 +126,15 @@ export default function PaymentStep({ reservationId, downpayment, holdTime, onUp
             className="absolute inset-0 cursor-pointer opacity-0"
           />
         </label>
+        {expired && (
+          <p role="alert" className="mt-3 text-[12px] font-semibold text-[#ae673c]">
+            The hold has expired. Please make a new reservation.
+          </p>
+        )}
         {uploadError && <p role="alert" className="mt-3 text-[12px] font-semibold text-[#ae673c]">{uploadError}</p>}
         <button
           type="submit"
-          disabled={!file || uploading || !!uploadError}
+          disabled={!file || uploading || !!uploadError || expired}
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-[9px] rounded-[3px] bg-green px-[22px] text-[13px] font-bold text-white hover:brightness-105 disabled:opacity-60"
         >
           {uploading ? 'Uploading…' : 'Submit payment proof'} <Icon name="arrow" />

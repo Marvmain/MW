@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const VIDEO_SRC = '/videos/Dumagat.mp4'
 
@@ -6,6 +6,32 @@ export default function VideoSection() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [started, setStarted] = useState(false)
   const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.muted = true
+          setStarted(true)
+          video.play().catch(() => {
+            // Autoplay may be blocked; the visible controls still allow manual playback.
+          })
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.25 },
+    )
+    observer.observe(video)
+
+    return () => {
+      observer.disconnect()
+      video.pause()
+    }
+  }, [])
 
   function start() {
     const v = videoRef.current
@@ -19,7 +45,9 @@ export default function VideoSection() {
   return (
     <section id="highlights" className="bg-sand">
       <div className="mx-auto max-w-[1240px] px-[42px] py-[100px] max-[640px]:px-[22px] max-[640px]:py-[72px]">
-        <div className="mb-[42px] flex items-end justify-between gap-10 max-[640px]:mb-[30px] max-[640px]:flex-col max-[640px]:items-start max-[640px]:gap-4">
+        <div
+          className="mb-[42px] flex items-end justify-between gap-10 max-[640px]:mb-[30px] max-[640px]:flex-col max-[640px]:items-start max-[640px]:gap-4"
+        >
           <div className="max-w-[590px]">
             <span className="mb-4 block text-[10px] font-bold uppercase tracking-[.18em] text-sage">See the river for yourself</span>
             <h2 className="text-[clamp(32px,3.5vw,46px)] font-bold leading-[1.14] tracking-[-.035em] text-forest">
@@ -36,11 +64,14 @@ export default function VideoSection() {
             The highlights video could not be loaded right now. Please check back later.
           </p>
         ) : (
-          <div className="relative aspect-video overflow-hidden rounded-[10px] bg-deep shadow-[0_25px_50px_rgba(21,58,46,.25)]">
+          <div
+            className="relative aspect-video overflow-hidden rounded-[10px] bg-deep shadow-[0_25px_50px_rgba(21,58,46,.25)]"
+          >
             <video
               ref={videoRef}
               src={`${VIDEO_SRC}#t=0.1`}
               preload="metadata"
+              muted
               playsInline
               controls={started}
               aria-label="Dumagat River Resort highlights video"

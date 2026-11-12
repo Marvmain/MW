@@ -19,11 +19,13 @@ export async function submitPaymentProof(reservationId: string, file: File): Pro
   const problem = checkProof(file)
   if (problem) throw new Error(problem)
 
-  const path = `${reservationId}/proof.${EXT[file.type]}`
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false })
+  // A new random name for every attempt, so an old (rejected) file is never reused.
+  const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+  const path = `${reservationId}/proof-${suffix}.${EXT[file.type]}`
 
-  // "already exists" means an earlier attempt uploaded it; we just continue to the final step.
-  if (error && !/already exists|duplicate/i.test(error.message)) {
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false })
+  if (error) {
+    console.error('Payment proof upload error:', error)
     throw new Error('We could not upload your file. Your reservation hold may have expired. Please try again.')
   }
 
@@ -32,6 +34,7 @@ export async function submitPaymentProof(reservationId: string, file: File): Pro
     p_path: path,
   })
   if (rpcError) {
+    console.error('attach_payment_proof error:', rpcError)
     throw new Error(rpcError.code === 'P0001' ? rpcError.message : 'We could not save your payment proof. Please try again.')
   }
 }

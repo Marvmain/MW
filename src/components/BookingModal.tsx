@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate, todayInManila } from '../lib/dates'
 import { checkProof, submitPaymentProof } from '../lib/proofs'
 import { peso } from '../lib/money'
 import type { Activity, AvailabilityResult, Cottage, PaymentMethod, ReservationResult } from '../types'
 import Icon from './Icon'
+import { useModal } from '../lib/useModal'
+import { useCountdown } from '../lib/useCountdown'
+import { useFeedback } from './Feedback'
+import HoldTimer from './HoldTimer'
+import Flash from './Flash'
 
 const MOBILE_RE = /^(09|\+639)\d{9}$/
 
@@ -48,6 +53,8 @@ export default function BookingModal({ cottages, initialId, availability, onClos
   const [uploadError, setUploadError] = useState('')
   const [uploaded, setUploaded] = useState(false)
   const [copied, setCopied] = useState('')
+  const remaining = useCountdown(result?.hold_expires_at ?? null)
+  const holdExpired = !!result && remaining === 0
 
   useEffect(() => {
     let cancelled = false
@@ -80,13 +87,9 @@ export default function BookingModal({ cottages, initialId, availability, onClos
     }
   }, [result])
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModal(panelRef, onClose)
+  const { toast } = useFeedback()
 
   // How many of each cottage are still free today
   const slotById = new Map((availability?.rows ?? []).map((r) => [r.cottage_id, r]))
@@ -154,6 +157,11 @@ export default function BookingModal({ cottages, initialId, availability, onClos
       return
     }
     setResult(data as ReservationResult)
+    try {
+      localStorage.setItem('mw-last-reference', (data as ReservationResult).reference)
+    } catch {
+      /* storage unavailable */
+    }
     onBooked()
   }
 
@@ -182,6 +190,7 @@ export default function BookingModal({ cottages, initialId, availability, onClos
     try {
       await navigator.clipboard.writeText(text)
       setCopied(text)
+      toast('Number copied.')
       setTimeout(() => setCopied(''), 1500)
     } catch {
       /* clipboard not available */
@@ -208,17 +217,19 @@ export default function BookingModal({ cottages, initialId, availability, onClos
   )
 
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(11,30,23,.72)] p-5" role="dialog" aria-modal="true" aria-labelledby="booking-title">
-      <div className="relative max-h-[94vh] w-[min(700px,100%)] overflow-y-auto bg-paper p-[38px] shadow-[0_30px_80px_rgba(0,0,0,.25)] max-[640px]:px-[22px] max-[640px]:py-8">
+    <div className="fixed inset-0 z-[100] animate-fade-in grid place-items-center bg-[rgba(11,30,23,.72)] p-5" role="dialog" aria-modal="true" aria-labelledby="booking-title">
+      <div ref={panelRef} tabIndex={-1} className="relative max-h-[94vh] animate-modal-in w-[min(700px,100%)] overflow-y-auto bg-paper p-[38px] shadow-[0_30px_80px_rgba(0,0,0,.25)] max-[640px]:px-[22px] max-[640px]:py-8 outline-none">
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-[22px] top-[22px] border-0 bg-transparent text-[#546a61]">
           <Icon name="close" />
         </button>
 
         {/* STEP 3: confirmation */}
         {result && uploaded && (
-          <div className="text-center">
-            <span className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-full bg-[#dfe9d7] text-green">
-              <Icon name="check" size={30} />
+          <div className="animate-step-in text-center">
+            <span className="mx-auto mb-6 grid h-16 w-16 animate-pop-in place-items-center rounded-full bg-[#dfe9d7] text-green">
+              <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m5 12 4 4L19 6" pathLength={1} className="draw-check" />
+              </svg>
             </span>
             <span className={eyebrowClass}>Payment proof received</span>
             <h2 id="booking-title" className={`${h2Class} mb-3`}>Thank you, {firstName}.</h2>
@@ -239,12 +250,15 @@ export default function BookingModal({ cottages, initialId, availability, onClos
 
         {/* STEP 2: payment proof */}
         {result && !uploaded && (
-          <div>
+          <div className="animate-step-in">
             <span className={eyebrowClass}>Reservation received</span>
             <h2 id="booking-title" className={h2Class}>Almost done, {firstName}.</h2>
             <p className="mt-1.5 text-[13px] text-[#728078]">
               Send your downpayment, then upload the proof before <strong>{holdTime}</strong> or the hold is released.
             </p>
+            <div className="mt-3">
+              <HoldTimer expiresAt={result.hold_expires_at} />
+            </div>
             <Progress step={2} />
 
             {referenceBox}
@@ -301,7 +315,8 @@ export default function BookingModal({ cottages, initialId, availability, onClos
                 />
               </label>
               {uploadError && <p role="alert" className="mt-3 text-[12px] font-semibold text-[#ae673c]">{uploadError}</p>}
-              <button type="submit" disabled={!file || uploading || !!uploadError} className={`${primaryBtn} mt-4`}>
+              {holdExpired && <p role="alert" className="mt-3 text-[12px] font-semibold text-[#ae673c]">The hold has expired. Please make a new reservation.</p>}
+              <button type="submit" disabled={!file || uploading || !!uploadError || holdExpired} className={`${primaryBtn} mt-4`}>
                 {uploading ? 'Uploading…' : 'Submit payment proof'} <Icon name="arrow" />
               </button>
               <p className="mt-3 text-center text-[10px] text-[#8a958f]">Keep this window open until your proof is uploaded.</p>
@@ -311,7 +326,7 @@ export default function BookingModal({ cottages, initialId, availability, onClos
 
         {/* STEP 1: details */}
         {!result && (
-          <form onSubmit={submit} noValidate>
+          <form onSubmit={submit} noValidate className="animate-step-in">
             <span className={eyebrowClass}>Complete your reservation</span>
             <h2 id="booking-title" className={h2Class}>Your reservation</h2>
             <p className="mt-1.5 text-[13px] text-[#728078]">Guest checkout — no account required.</p>
@@ -423,9 +438,9 @@ export default function BookingModal({ cottages, initialId, availability, onClos
             <div className="mb-[18px] mt-1 grid gap-2 bg-[#eee9de] px-[18px] py-[15px] text-[12px] text-[#465e54]">
               <div className="flex justify-between"><span>Cottages</span><strong>{peso(cottageCents)}</strong></div>
               {actsCents > 0 && <div className="flex justify-between"><span>Activities</span><strong>{peso(actsCents)}</strong></div>}
-              <div className="flex justify-between border-t border-[#d8d2c4] pt-2"><span>Total</span><strong>{peso(totalCents)}</strong></div>
-              <div className="flex justify-between text-forest"><span className="font-bold">30% downpayment</span><strong className="text-[15px]">{peso(downCents)}</strong></div>
-              <div className="flex justify-between"><span>Balance on arrival</span><strong>{peso(totalCents - downCents)}</strong></div>
+              <div className="flex justify-between border-t border-[#d8d2c4] pt-2"><span>Total</span><Flash value={peso(totalCents)} /></div>
+              <div className="flex justify-between text-forest"><span className="font-bold">30% downpayment</span><Flash value={peso(downCents)} className="text-[15px]" /></div>
+              <div className="flex justify-between"><span>Balance on arrival</span><Flash value={peso(totalCents - downCents)} /></div>
               <p className="text-[10px] text-[#748079]">The final amounts are confirmed when you submit.</p>
             </div>
 

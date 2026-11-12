@@ -61,5 +61,26 @@ export type TrackedReservation = {
   hold_expires_at: string
   can_upload: boolean
   proof_uploaded: boolean
+  rejection_reason: string | null
   activities: { name: string; option: string | null; quantity: number; line_total: number }[]
+}
+export type ReservationRow = {
+  id: string
+  reference_code: string
+  status: 'pending_proof' | 'for_verification' | 'confirmed' | 'checked_in' | 'cancelled'
+  visit_date: string
+  guest_name: string
+  guest_phone: string
+  guests_count: number
+  cottage_price: number
+  activities_total: number
+  total_amount: number
+  downpayment_amount: number
+  hold_expires_at: string
+  payment_proof_path: string | null
+  proof_uploaded_at: string | null
+  rejection_reason: string | null
+  created_at: string
+  reservation_cottages: { quantity: number; line_total: number; cottages: { name: string; option: string | null } | null }[]
+  reservation_activities: { quantity: number; line_total: number; activities: { name: string; option: string | null } | null }[]
 }

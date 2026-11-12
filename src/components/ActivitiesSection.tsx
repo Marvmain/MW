@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import useReveal from './Reveal'
 import { imageUrl } from '../lib/images'
 import type { Activity } from '../types'
 import Icon from './Icon'
@@ -14,6 +15,18 @@ export default function ActivitiesSection() {
   const [canNext, setCanNext] = useState(false)
   const [bar, setBar] = useState({ w: 100, l: 0 })
   const trackRef = useRef<HTMLDivElement>(null)
+  const textReveal = useReveal({ delay: 0, children: null })
+  const sliderReveal = useReveal({ delay: 120, children: null })
+  const { ref: textRevealRef, style: textRevealStyle, className: textRevealClassName } = textReveal as unknown as {
+    ref: React.RefObject<HTMLDivElement>
+    style: React.CSSProperties
+    className: string
+  }
+  const { ref: sliderRevealRef, style: sliderRevealStyle, className: sliderRevealClassName } = sliderReveal as unknown as {
+    ref: React.RefObject<HTMLDivElement>
+    style: React.CSSProperties
+    className: string
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -91,7 +104,7 @@ export default function ActivitiesSection() {
       </div>
 
       <div className="relative z-10 mx-auto grid max-w-[1240px] grid-cols-[.7fr_1.3fr] gap-[60px] px-[42px] py-[82px] max-[900px]:grid-cols-1 max-[900px]:gap-10 max-[640px]:px-[22px] max-[640px]:py-[70px]">
-        <div>
+        <div ref={textRevealRef} style={textRevealStyle} className={textRevealClassName}>
           <span className="mb-4 block text-[10px] font-bold uppercase tracking-[.18em] text-[#cbd9b5]">More ways to enjoy the day</span>
           <h2 className="text-[clamp(32px,3.5vw,46px)] font-bold leading-[1.14] tracking-[-.035em] text-white">
             Make the river
@@ -112,8 +125,17 @@ export default function ActivitiesSection() {
           )}
         </div>
 
-        <div className="min-w-0">
-          {loading && <p className="py-6 text-sm text-[#bfcfc8]">Loading activities…</p>}
+        <div ref={sliderRevealRef} style={sliderRevealStyle} className={`min-w-0 ${sliderRevealClassName}`}>
+        {loading && (
+            <div className="flex gap-[18px] overflow-hidden px-1 pt-2" aria-busy="true" aria-label="Loading activities">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-[360px] w-[calc((100%-44px)/3)] shrink-0 animate-pulse rounded-[10px] border border-white/15 bg-[#2d5b4a] motion-reduce:animate-none max-[640px]:w-[72%]"
+                />
+              ))}
+            </div>
+          )}
           {error && <p className="py-6 text-sm text-[#f0c9b0]">{error}</p>}
           {!loading && !error && items.length === 0 && (
             <p className="py-6 text-sm text-[#bfcfc8]">Our activities will be posted here soon.</p>

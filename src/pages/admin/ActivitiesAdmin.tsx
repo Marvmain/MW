@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { checkImage, imageUrl, removeImage, uploadImage } from '../../lib/images'
 import type { Activity } from '../../types'
+import Icon from '../../components/Icon'
 
 type FormState = {
   name: string
@@ -22,12 +23,14 @@ export default function ActivitiesAdmin() {
   const [items, setItems] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [search, setSearch] = useState('')
+  const [menu, setMenu] = useState<{ activity: Activity; top: number; right: number } | null>(null)
+  const [photo, setPhoto] = useState<Activity | null>(null)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Activity | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -48,13 +51,15 @@ export default function ActivitiesAdmin() {
   useEffect(() => {
     let cancelled = false
 
-    async function fetchActivities() {
+    const runLoad = async () => {
       const { data, error } = await supabase
         .from('activities')
         .select('*')
         .order('sort_order')
         .order('created_at')
+
       if (cancelled) return
+
       if (error) setPageError('Could not load activities. ' + error.message)
       else {
         setPageError('')
@@ -63,11 +68,47 @@ export default function ActivitiesAdmin() {
       setLoading(false)
     }
 
-    void fetchActivities()
+    void runLoad()
+
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Close the ⋯ menu on outside click, scroll, resize, or Escape
+  useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+
+  useEffect(() => {
+    if (!photo) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPhoto(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [photo])
+
+  function openMenu(e: React.MouseEvent<HTMLButtonElement>, a: Activity) {
+    e.stopPropagation()
+    if (menu?.activity.id === a.id) return setMenu(null)
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenu({ activity: a, top: rect.bottom + 4, right: window.innerWidth - rect.right })
+  }
 
   function openForm(a: Activity | null) {
     setEditing(a)
@@ -92,14 +133,6 @@ export default function ActivitiesAdmin() {
     setFile(f)
     setPreview(f ? URL.createObjectURL(f) : null)
     setFormError(f ? checkImage(f) ?? '' : '')
-  }
-
-  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
-    e.preventDefault()
-    setIsDragging(false)
-
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile) onPickFile(droppedFile)
   }
 
   async function save(e: React.FormEvent) {
@@ -144,64 +177,213 @@ export default function ActivitiesAdmin() {
     setSaving(false)
   }
 
-  async function toggle(a: Activity) {
-    const { error } = await supabase.from('activities').update({ is_active: !a.is_active }).eq('id', a.id)
-    if (error) setPageError('Could not update. ' + error.message)
-    else load()
+  async function deleteActivity(activity: Activity) {
+    const label = activity.option ? `${activity.name} (${activity.option})` : activity.name
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return
+
+    setMenu(null)
+    setPageError('')
+    const { error } = await supabase.from('activities').delete().eq('id', activity.id)
+    if (error) {
+      setPageError('Could not delete activity. ' + messageOf(error))
+      return
+    }
+    if (activity.image_path) await removeImage(activity.image_path)
+    await load()
   }
+
+  const q = search.trim().toLowerCase()
+  const visible = items.filter((a) => !q || a.name.toLowerCase().includes(q) || (a.option ?? '').toLowerCase().includes(q))
+  const hiddenCount = items.filter((a) => !a.is_active).length
 
   const inputClass = 'h-[43px] border border-[#d8d5cc] bg-white px-3 text-[13px] text-forest outline-none focus:border-[#30624d]'
   const labelClass = 'flex flex-col gap-[7px] text-[11px] font-bold text-[#465e54]'
+  const th = 'bg-[#fafbfa] px-[14px] py-3 text-[9px] font-bold uppercase tracking-[.1em] text-[#8d9892]'
+  const td = 'px-[14px] py-[18px] text-[12px] text-[#607069]'
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[25px] font-bold tracking-[-.025em] text-[#1d3c31]">Activities</h1>
-          <p className="mt-1 text-[12px] text-[#849089]">Guests only see activities that are switched on.</p>
+          <span className="mb-3 block text-[10px] font-bold uppercase tracking-[.18em] text-sage">Resort catalog</span>
+          <h1 className="text-[32px] font-bold leading-tight tracking-[-.03em] text-[#1d3c31]">Activities</h1>
+          <p className="mt-2 text-[12px] text-[#849089]">Manage the activities, rates, and stock shown in the customer booking interface.</p>
         </div>
-        <button onClick={() => openForm(null)} className="min-h-11 rounded-[3px] bg-green px-[22px] text-[13px] font-bold text-white hover:brightness-105">
+        <button
+          onClick={() => openForm(null)}
+          className="min-h-11 rounded-[3px] bg-green px-[22px] text-[13px] font-bold text-white hover:brightness-105"
+        >
           + Add activity
         </button>
       </div>
 
-      {pageError && <p className="mb-4 border border-[#e8c9b8] bg-[#fff1dc] px-4 py-3 text-[12px] text-[#a6672f]">{pageError}</p>}
-      {loading && <p className="text-[13px] text-[#849089]">Loading…</p>}
-      {!loading && items.length === 0 && !pageError && (
-        <p className="border border-dashed border-[#c9d1cb] bg-white px-6 py-10 text-center text-[13px] text-[#849089]">
-          No activities yet. Click “Add activity” to create the first one.
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border border-[#d5e0d4] bg-[#e4ede3] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#315e4b]">
+            <Icon name="bike" size={20} />
+          </span>
+          <div>
+            <small className="block text-[9px] font-bold uppercase tracking-[.1em] text-[#6f8579]">Total activities</small>
+            <strong className="text-[24px] font-extrabold leading-tight text-[#1f4034]">{items.length}</strong>
+          </div>
+        </div>
+        <p className="text-[11px] text-[#6f8579]">
+          {hiddenCount === 0
+            ? 'All listed activities are currently visible to guests.'
+            : `${hiddenCount} ${hiddenCount === 1 ? 'activity is' : 'activities are'} hidden from guests.`}
         </p>
+      </div>
+
+      {pageError && <p className="mb-4 border border-[#e8c9b8] bg-[#fff1dc] px-4 py-3 text-[12px] text-[#a6672f]">{pageError}</p>}
+
+      <div className="border border-[#dfe4df] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e4e8e4] px-5 py-4">
+          <div>
+            <h2 className="text-[15px] font-bold text-[#263f36]">Activities list</h2>
+            <p className="mt-1 text-[10px] text-[#87928c]">Current booking catalog</p>
+          </div>
+          <div className="relative w-[280px] max-[640px]:w-full">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8d9892]">
+              <Icon name="search" size={16} />
+            </span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search activities"
+              aria-label="Search activities"
+              className="h-[44px] w-full border border-[#d8d5cc] bg-white pl-10 pr-3 text-[12px] text-forest outline-none focus:border-[#30624d]"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="px-5 py-8 text-[13px] text-[#849089]">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="px-5 py-10 text-center text-[13px] text-[#849089]">No activities yet. Click “+ Add activity” to create the first one.</p>
+        ) : visible.length === 0 ? (
+          <p className="px-5 py-10 text-center text-[13px] text-[#849089]">No activities match your search.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] border-collapse text-left">
+              <thead>
+                <tr>
+                  <th className={th}>Activity</th>
+                  <th className={th}>Option</th>
+                  <th className={th}>Rate</th>
+                  <th className={th}>Unit / note</th>
+                  <th className={th}>Stock</th>
+                  <th className={th}>Visibility</th>
+                  <th className={`${th} w-[60px]`}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((a) => (
+                  <tr key={a.id} className="border-t border-[#edf0ed]">
+                    <td className={`${td} font-bold text-[#263f36]`}>{a.name}</td>
+                    <td className={td}>{a.option || '—'}</td>
+                    <td className={`${td} font-bold text-[#263f36]`}>{a.price === 0 ? 'Free' : `₱${a.price.toLocaleString()}`}</td>
+                    <td className={td}>{a.price_note || '—'}</td>
+                    <td className={td}>{a.stock === null ? 'Unlimited' : a.stock}</td>
+                    <td className={td}>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${a.is_active ? 'bg-[#e3eee4] text-[#2f694d]' : 'bg-[#eceeed] text-[#6f7d76]'}`}
+                      >
+                        {a.is_active ? 'Visible' : 'Hidden'}
+                      </span>
+                    </td>
+                    <td className={`${td} text-right`}>
+                      <button
+                        type="button"
+                        onClick={(e) => openMenu(e, a)}
+                        aria-label={`Actions for ${a.name}${a.option ? ' ' + a.option : ''}`}
+                        aria-haspopup="menu"
+                        aria-expanded={menu?.activity.id === a.id}
+                        className="grid h-8 w-8 place-items-center rounded text-[#88958f] hover:bg-[#f4f6f3]"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <circle cx="5" cy="12" r="1.8" />
+                          <circle cx="12" cy="12" r="1.8" />
+                          <circle cx="19" cy="12" r="1.8" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {menu && (
+        <div
+          role="menu"
+          style={{ top: menu.top, right: menu.right }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-40 w-[150px] overflow-hidden rounded border border-[#dfe4df] bg-white py-1 shadow-[0_12px_30px_rgba(31,54,44,.15)]"
+        >
+          <button
+            role="menuitem"
+            onClick={() => {
+              setPhoto(menu.activity)
+              setMenu(null)
+            }}
+            className="block w-full px-4 py-2.5 text-left text-[12px] font-semibold text-[#466158] hover:bg-[#f4f6f3]"
+          >
+            View photo
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => {
+              openForm(menu.activity)
+              setMenu(null)
+            }}
+            className="block w-full px-4 py-2.5 text-left text-[12px] font-semibold text-[#466158] hover:bg-[#f4f6f3]"
+          >
+            Edit
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => void deleteActivity(menu.activity)}
+            className="block w-full px-4 py-2.5 text-left text-[12px] font-semibold text-[#a3483b] hover:bg-[#fff3f1]"
+          >
+            Delete
+          </button>
+        </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {items.map((a) => {
-          const url = imageUrl(a.image_path)
-          return (
-            <div key={a.id} className="flex flex-wrap items-center gap-4 border border-[#dfe4df] bg-white p-4">
-              <div className="h-[64px] w-[84px] shrink-0 overflow-hidden bg-[#e8efe8]">
-                {url ? <img src={url} alt={a.name} className="h-full w-full object-cover" /> : <span className="grid h-full place-items-center text-[10px] text-[#9ba49f]">No photo</span>}
-              </div>
-              <div className="min-w-[160px] flex-1">
-                <strong className="text-[14px] text-[#263f36]">{a.name}</strong>
-                {a.option && <span className="text-[12px] text-[#75817b]"> · {a.option}</span>}
-                <p className="mt-1 text-[12px] text-[#75817b]">
-                  {a.price === 0 ? 'Free' : `₱${a.price.toLocaleString()}`}
-                  {a.price_note ? ` · ${a.price_note}` : ''} · {a.stock === null ? 'Unlimited' : `${a.stock} in stock`}
-                </p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${a.is_active ? 'bg-[#e3eee4] text-[#2f694d]' : 'bg-[#eceeed] text-[#6f7d76]'}`}>
-                {a.is_active ? 'On' : 'Off'}
-              </span>
-              <button onClick={() => toggle(a)} className="h-[33px] rounded-[3px] border border-[#d7ddd8] bg-white px-3 text-[11px] font-bold text-[#466158] hover:bg-[#f4f6f3]">
-                {a.is_active ? 'Turn off' : 'Turn on'}
-              </button>
-              <button onClick={() => openForm(a)} className="h-[33px] rounded-[3px] border border-[#d7ddd8] bg-white px-3 text-[11px] font-bold text-[#466158] hover:bg-[#f4f6f3]">
-                Edit
+      {photo && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-[rgba(11,30,23,.8)] p-5"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPhoto(null)}
+        >
+          <div className="max-h-[94vh] w-full max-w-[720px] overflow-y-auto bg-paper p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <strong className="text-[14px] text-forest">
+                {photo.name}
+                {photo.option ? ` · ${photo.option}` : ''}
+              </strong>
+              <button
+                onClick={() => setPhoto(null)}
+                className="rounded border border-[#d7ddd8] bg-white px-3 py-1.5 text-[11px] font-bold text-[#466158]"
+              >
+                Close
               </button>
             </div>
-          )
-        })}
-      </div>
+            {imageUrl(photo.image_path) ? (
+              <img src={imageUrl(photo.image_path)!} alt={photo.name} className="mx-auto max-h-[70vh] w-auto max-w-full object-contain" />
+            ) : (
+              <p className="border border-dashed border-[#c9d1cb] bg-white px-6 py-10 text-center text-[13px] text-[#849089]">
+                No photo uploaded yet. Use “Edit” to add one.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(11,30,23,.72)] p-5" role="dialog" aria-modal="true">
@@ -235,107 +417,15 @@ export default function ActivitiesAdmin() {
               </label>
             </div>
 
-            <div className="mt-6">
-              <div className="mb-3">
-                <span className={labelClass}>Activity Photo</span>
-                <p className="mt-1 text-xs text-[#849089]">Upload an image to showcase this activity.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label
-                  htmlFor="photo-upload"
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setIsDragging(true)
-                  }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={handleDrop}
-                  className={`relative flex min-h-[230px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-300 ${
-                    isDragging
-                      ? 'scale-[1.02] border-[#30624d] bg-[#e3eee4]'
-                      : 'border-[#c9d1cb] bg-[#f7f9f6] hover:border-[#30624d] hover:bg-[#f0f5ef]'
-                  }`}
-                >
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#e3eee4] text-[#30624d] shadow-sm transition-transform duration-300 hover:scale-110">
-                    <svg
-                      width="34"
-                      height="34"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M12 16V4" />
-                      <path d="m7 9 5-5 5 5" />
-                      <path d="M20 16.5v2A2.5 2.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-2" />
-                    </svg>
-                  </div>
-
-                  <h3 className="text-sm font-semibold text-[#263f36]">
-                    {isDragging ? 'Drop your image here' : 'Upload your image'}
-                  </h3>
-                  <p className="mt-2 text-xs text-[#849089]">Drag and drop your file here or</p>
-                  <span className="mt-4 rounded-lg bg-green px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105">
-                    Browse Files
-                  </span>
-                  <p className="mt-4 text-[10px] text-[#849089]">JPG, PNG or WebP · Maximum 5 MB</p>
-
-                  <input
-                    id="photo-upload"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => {
-                      onPickFile(e.target.files?.[0] ?? null)
-                      e.target.value = ''
-                    }}
-                    className="sr-only"
-                  />
-                </label>
-
-                <div className="flex min-h-[230px] flex-col rounded-xl border border-[#dfe4df] bg-white p-4 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-[#263f36]">Image Preview</h3>
-                      <p className="mt-1 text-[10px] text-[#849089]">Preview your selected photo</p>
-                    </div>
-                    {(preview || (editing && imageUrl(editing.image_path))) && (
-                      <span className="rounded-full bg-[#e3eee4] px-3 py-1 text-[10px] font-semibold text-[#2f694d]">Ready</span>
-                    )}
-                  </div>
-
-                  <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-lg bg-[#f7f9f6]">
-                    {(preview || (editing && imageUrl(editing.image_path))) ? (
-                      <img
-                        src={preview ?? imageUrl(editing!.image_path)!}
-                        alt="Activity photo preview"
-                        className="h-[165px] w-full rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="py-8 text-center">
-                        <svg
-                          width="42"
-                          height="42"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#aebbb2"
-                          strokeWidth="1.4"
-                          className="mx-auto"
-                          aria-hidden="true"
-                        >
-                          <rect x="3" y="3" width="18" height="18" rx="3" />
-                          <circle cx="8.5" cy="8.5" r="1.5" />
-                          <path d="m21 15-5-5L5 21" />
-                        </svg>
-                        <p className="mt-3 text-xs font-medium text-[#849089]">No image uploaded yet</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="mt-3 text-[10px] text-[#849089]">Recommended: High-quality activity photo</p>
+            <div className="mt-5">
+              <span className={labelClass}>Photo (JPG, PNG or WebP, up to 5 MB)</span>
+              <div className="mt-2 flex items-center gap-4">
+                <div className="h-[72px] w-[96px] shrink-0 overflow-hidden bg-[#e8efe8]">
+                  {(preview || (editing && imageUrl(editing.image_path))) && (
+                    <img src={preview ?? imageUrl(editing!.image_path)!} alt="Preview" className="h-full w-full object-cover" />
+                  )}
                 </div>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} className="text-[12px]" />
               </div>
             </div>
 

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatVisitDate } from '../lib/dates'
 import { peso } from '../lib/money'
+import { useModal } from '../lib/useModal'
 import type { TrackedReservation } from '../types'
 import Icon from './Icon'
 import PaymentStep from './PaymentStep'
+import StatusTimeline from './StatusTimeline'
 
 const MOBILE_RE = /^(09|\+639)\d{9}$/
 
@@ -35,41 +37,59 @@ function statusMessage(r: TrackedReservation, holdTime: string) {
 }
 
 export default function TrackModal({ onClose }: { onClose: () => void }) {
-  const [reference, setReference] = useState('')
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModal(panelRef, onClose)
+
+  const [reference, setReference] = useState(() => {
+    try {
+      return localStorage.getItem('mw-last-reference') ?? ''
+    } catch {
+      return ''
+    }
+  })
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<TrackedReservation | null>(null)
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+    async function lookup(silent = false) {
+    if (!silent) {
+      setBusy(true)
+      setError('')
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  async function lookup() {
-    setBusy(true)
-    setError('')
     const { data: res, error: rpcError } = await supabase.rpc('track_reservation', {
       p_reference: reference.trim(),
       p_phone: phone.replace(/[\s-]/g, ''),
     })
-    setBusy(false)
+    if (!silent) setBusy(false)
     if (rpcError) {
-      setError(rpcError.code === 'P0001' ? rpcError.message : 'Something went wrong. Please try again.')
+      if (!silent) setError(rpcError.code === 'P0001' ? rpcError.message : 'Something went wrong. Please try again.')
       return
+    }
+    try {
+      localStorage.setItem('mw-last-reference', reference.trim().toUpperCase())
+    } catch {
+      /* storage unavailable */
     }
     setData(res as TrackedReservation)
   }
+
+  // Keep the status fresh while the guest has the result open
+  useEffect(() => {
+    if (!data) return
+    const timer = window.setInterval(() => {
+      void lookup(true)
+    }, 30000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.reference])
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (reference.trim().length < 5) return setError('Please enter your reservation reference, like MW-3F9A1C.')
     if (!MOBILE_RE.test(phone.replace(/[\s-]/g, ''))) return setError('Please enter the mobile number you used for the reservation.')
-    lookup()
+    void lookup()
   }
 
   const inputClass = 'h-[43px] border border-[#d8d5cc] bg-white px-3 text-[13px] text-forest outline-none focus:border-[#30624d]'
@@ -84,8 +104,12 @@ export default function TrackModal({ onClose }: { onClose: () => void }) {
     : ''
 
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[rgba(11,30,23,.72)] p-5" role="dialog" aria-modal="true" aria-labelledby="track-title">
-      <div className="relative max-h-[94vh] w-[min(700px,100%)] overflow-y-auto bg-paper p-[38px] shadow-[0_30px_80px_rgba(0,0,0,.25)] max-[640px]:px-[22px] max-[640px]:py-8">
+    <div className="fixed inset-0 z-[100] animate-fade-in grid place-items-center bg-[rgba(11,30,23,.72)] p-5" role="dialog" aria-modal="true" aria-labelledby="track-title">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative max-h-[94vh] animate-modal-in w-[min(700px,100%)] overflow-y-auto bg-paper p-[38px] shadow-[0_30px_80px_rgba(0,0,0,.25)] outline-none max-[640px]:px-[22px] max-[640px]:py-8"
+      >
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-[22px] top-[22px] border-0 bg-transparent text-[#546a61]">
           <Icon name="close" />
         </button>
@@ -117,11 +141,26 @@ export default function TrackModal({ onClose }: { onClose: () => void }) {
             <p className="mt-3">
               <span className={`inline-block rounded-full px-3 py-1.5 text-[10px] font-bold ${STATUS[data.status].cls}`}>{STATUS[data.status].label}</span>
             </p>
+            <div className="mt-5">
+              <StatusTimeline status={data.status} rejected={!!data.rejection_reason && data.status === 'pending_proof'} />
+            </div>
             <p className="mb-6 mt-4 text-sm leading-[1.7] text-[#687870]">{statusMessage(data, holdTime)}</p>
+
+            {data.rejection_reason && (
+              <div className="mb-5 border border-[#e8c9b8] bg-[#fff1dc] p-4 text-[12px] text-[#a6672f]">
+                <strong className="block">Your payment proof was not accepted</strong>
+                <p className="mt-1">{data.rejection_reason}</p>
+                <p className="mt-1">
+                  {data.can_upload
+                    ? `Please upload a new proof below before ${holdTime}.`
+                    : 'The hold on this reservation has expired, so please make a new reservation.'}
+                </p>
+              </div>
+            )}
 
             <div className="mb-5 grid gap-1.5 bg-white p-4 text-[12px] text-[#465e54]">
               <div className="flex justify-between gap-4"><span>Name</span><strong className="text-right">{data.guest_name}</strong></div>
-                {data.cottages.map((c) => (
+              {data.cottages.map((c) => (
                 <div key={c.name + (c.option ?? '')} className="flex justify-between gap-4">
                   <span>{c.name}{c.option ? ` · ${c.option}` : ''} × {c.quantity}</span>
                   <strong>{peso(Math.round(c.line_total * 100))}</strong>
@@ -142,11 +181,14 @@ export default function TrackModal({ onClose }: { onClose: () => void }) {
 
             {data.can_upload && data.reservation_id && (
               <div className="mb-5">
-                <PaymentStep reservationId={data.reservation_id} downpayment={data.downpayment} holdTime={holdTime} onUploaded={lookup} />
+                <PaymentStep reservationId={data.reservation_id} downpayment={data.downpayment} expiresAt={data.hold_expires_at} onUploaded={lookup} />
               </div>
             )}
 
             <div className="flex gap-3 max-[640px]:flex-col">
+              <button type="button" onClick={() => void lookup()} disabled={busy} className="min-h-11 flex-1 rounded-[3px] border border-[#d7ddd8] bg-white text-[13px] font-bold text-[#466158] disabled:opacity-60">
+                {busy ? 'Refreshing…' : 'Refresh status'}
+              </button>
               <button type="button" onClick={() => { setData(null); setError('') }} className="min-h-11 flex-1 rounded-[3px] border border-[#d7ddd8] bg-white text-[13px] font-bold text-[#466158]">
                 Check another reservation
               </button>
